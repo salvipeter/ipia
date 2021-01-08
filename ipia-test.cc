@@ -58,9 +58,9 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
   TCLAP::ValueArg<std::string> outfileArg("o", "output", "Output mesh", false, "/tmp/output.obj",
                                           "output.obj", cmd);
   TCLAP::ValueArg<size_t> controlArg("c", "control", "B-spline control size", false, 10,
-                                     "approx. # of control points", cmd);
+                                     "# of CPs", cmd);
   TCLAP::ValueArg<size_t> resArg("r", "resolution", "Output resolution", false, 50,
-                                 "approx. # of cells", cmd);
+                                 "# of cells", cmd);
   TCLAP::ValueArg<size_t> iterArg("n", "iterations", "Iteration count", false, 10,
                                   "# of iterations", cmd);
   TCLAP::ValueArg<double> stepArg("s", "step", "Step size", false, 0.01,
@@ -78,14 +78,20 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
   std::string infile = infileArg.getValue(), outfile = outfileArg.getValue();
 
   auto mesh = TriMesh::readOBJ(infile);
-  std::cout << "File loaded." << std::endl;
+  std::cout << mesh.points().size() << " points loaded." << std::endl;
 
   std::chrono::steady_clock::time_point start, stop;
 
-  start = std::chrono::steady_clock::now();
   auto bbox = boundingBox(mesh);
   auto size = computeResolution(bbox, control);
   auto dc_res = computeResolution(bbox, res);
+  std::cout << "Control size: " << size[0] << 'x' << size[1] << 'x' << size[2]
+            << " (= " << size[0] * size[1] * size[2] << " CPs)" << std::endl;
+  std::cout << "Dual contouring resolution: "
+            << dc_res[0] << 'x' << dc_res[1] << 'x' << dc_res[2]
+            << " (= " << dc_res[0] * dc_res[1] * dc_res[2] << " cells)" << std::endl;
+
+  start = std::chrono::steady_clock::now();
   std::vector<IPIA::PointNormal> samples;
   size_t n = mesh.points().size();
   samples.resize(n);
@@ -93,7 +99,7 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
     samples[i] = { mesh[i], { 0, 0, 0 } };
   approximateNormals(samples, mesh.triangles());
   stop = std::chrono::steady_clock::now();
-  std::cout << "Setup: "
+  std::cout << "Creating input: "
             << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
             << "ms" << std::endl;
 
@@ -102,8 +108,8 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
   surface.fit(samples, step, iterations);
   stop = std::chrono::steady_clock::now();
   std::cout << "Fitting: "
-            << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
-            << "ms" << std::endl;
+            << std::chrono::duration_cast<std::chrono::seconds>(stop - start).count()
+            << "s" << std::endl;
 
   start = std::chrono::steady_clock::now();
   auto eval = [&](const DualContouring::Point3D &p) { return surface({ p[0], p[1], p[2] }); };
@@ -111,9 +117,9 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
     { bbox[0][0], bbox[0][1], bbox[0][2] },
     { bbox[1][0], bbox[1][1], bbox[1][2] }
   } };
-  DualContouring::isosurface(eval, 0.0, dc_bbox, dc_res);
+  DualContouring::isosurface(eval, 0.0, dc_bbox, dc_res).writeOBJ(outfile);
   stop = std::chrono::steady_clock::now();
-  std::cout << "Dual contouring mesh generation: "
+  std::cout << "Mesh generation: "
             << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
             << "ms" << std::endl;
 }
