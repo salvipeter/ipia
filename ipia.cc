@@ -25,6 +25,9 @@ IPIA::IPIA(const std::array<BSBasis, 3> &bases, const std::array<size_t, 3> &siz
   : sizes(size), bases(bases) {
 }
 
+size_t IPIA::size(size_t i) const {
+  return sizes[i];
+}
 
 size_t IPIA::degree(size_t i) const {
   return bases[i].degree();

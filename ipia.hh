@@ -20,10 +20,11 @@ public:
   IPIA &operator=(const IPIA &) = default;
 
   // Properties
-  size_t degree(size_t i) const;
-  const Geometry::DoubleVector &knots(size_t i) const;
+  size_t size(size_t i) const;                         // # of control points  in the i-th axis
+  size_t degree(size_t i) const;                       //   B-spline degree    in the i-th axis
+  const Geometry::DoubleVector &knots(size_t i) const; // B-spline knot vector in the i-th axis
   double controlPoint(size_t i, size_t j, size_t k) const;
-  const Geometry::DoubleVector &controlNet() const; // row-major
+  const Geometry::DoubleVector &controlNet() const;    // row-major
 
   // Evaluation
   double operator()(const Geometry::Point3D &p) const;
