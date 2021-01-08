@@ -6,6 +6,8 @@
 //     Computer Aided Geometric Design 77, #101817, 2020.
 // https://doi.org/10.1016/j.cagd.2020.101817
 
+#include <functional>
+
 #include <geometry.hh>
 
 class IPIA {
@@ -34,6 +36,7 @@ public:
   void fit(const std::vector<PointNormal> &samples, double small_step, size_t iterations);
 
 private:
+  void doBasis(const Geometry::Point3D &p, const std::function<void(size_t, double)> &f) const;
   double computeMu(const Geometry::PointVector &points);
 
   std::array<size_t, 3> sizes;
