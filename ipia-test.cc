@@ -110,8 +110,8 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
   surface.fit(samples, step, iterations);
   stop = std::chrono::steady_clock::now();
   std::cout << "Fitting: "
-            << std::chrono::duration_cast<std::chrono::seconds>(stop - start).count()
-            << "s" << std::endl;
+            << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
+            << "ms" << std::endl;
 
   start = std::chrono::steady_clock::now();
   auto eval = [&](const DualContouring::Point3D &p) { return surface({ p[0], p[1], p[2] }); };

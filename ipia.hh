@@ -34,6 +34,8 @@ public:
   void fit(const std::vector<PointNormal> &samples, double small_step, size_t iterations);
 
 private:
+  double computeMu(const Geometry::PointVector &points);
+
   std::array<size_t, 3> sizes;
   std::array<Geometry::BSBasis, 3> bases;
   Geometry::DoubleVector cpts;

@@ -1,6 +1,6 @@
 #include "ipia.hh"
 
-#include <Eigen/Sparse>
+#include <algorithm>
 
 using namespace Geometry;
 
@@ -65,28 +65,50 @@ double IPIA::operator()(const Point3D &p) const {
   return result;
 }
 
-double infinityNorm(const Eigen::SparseMatrix<double> &m) {
-  double result = 0;
-  for (size_t i = 0; i < (size_t)m.rows(); ++i) {
-    double sum = 0;
-    for (size_t j = 0; j < (size_t)m.cols(); ++j)
-      sum += std::abs(m.coeff(i, j));
-    if (sum > result)
-      result = sum;
+double IPIA::computeMu(const PointVector &points) {
+  DoubleVector sums(sizes[0] * sizes[1] * sizes[2], 0);
+  for (const auto &p : points) {
+    size_t degree[3], span[3];
+    DoubleVector coeff[3];
+    for (size_t i = 0; i < 3; ++i) {
+      degree[i] = bases[i].degree();
+      span[i] = bases[i].findSpan(p[i]);
+      bases[i].basisFunctions(span[i], p[i], coeff[i]);
+    }
+    for (size_t i = 0; i <= degree[0]; ++i) {
+      size_t x_offset = (span[0] - degree[0] + i) * sizes[1] * sizes[2];
+      for (size_t j = 0; j <= degree[1]; ++j) {
+        size_t y_offset = (span[1] - degree[1] + j) * sizes[2];
+        for (size_t k = 0; k <= degree[2]; ++k) {
+          size_t z_offset = span[2] - degree[2] + k;
+          size_t index = x_offset + y_offset + z_offset;
+          sums[index] += coeff[0][i] * coeff[1][j] * coeff[2][k];
+        }
+      }
+    }
   }
-  return result;
+  return 2.0 / *std::max_element(sums.begin(), sums.end());
 }
 
 void IPIA::fit(const std::vector<PointNormal> &samples, double small_step, size_t iterations) {
   // Variable names follow the notations of Section 3.2
   // Note that here we set epsilon = sigma.
   cpts.assign(sizes[0] * sizes[1] * sizes[2], 0.0);
-  double sigma = small_step, e = sigma;
-  size_t n = samples.size(), N = cpts.size();
-  Eigen::SparseMatrix<double> B(2 * n, N);
-  { // Set up the collocation matrix
-    std::vector<Eigen::Triplet<double>> triplets;
-    auto addTriplets = [&](size_t row, const Point3D &p) {
+  const size_t n = samples.size(), N = cpts.size();
+  const double sigma = small_step, e = sigma;
+  PointVector points(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    points[i] = samples[i].p;
+    points[n+i] = samples[i].p + samples[i].n * sigma;
+  };
+  const double mu = computeMu(points);
+  DoubleVector delta(2 * n), Delta(N, 0.0);
+
+  for (size_t iter = 0; iter < iterations; ++iter) {
+    for (size_t pi = 0; pi < 2 * n; ++pi)
+      delta[pi] = (pi < n ? 0 : e) - (*this)(points[pi]);
+    for (size_t pi = 0; pi < 2 * n; ++pi) {
+      const auto &p = points[pi];
       size_t degree[3], span[3];
       DoubleVector coeff[3];
       for (size_t i = 0; i < 3; ++i) {
@@ -101,24 +123,14 @@ void IPIA::fit(const std::vector<PointNormal> &samples, double small_step, size_
           for (size_t k = 0; k <= degree[2]; ++k) {
             size_t z_offset = span[2] - degree[2] + k;
             size_t index = x_offset + y_offset + z_offset;
-            triplets.emplace_back(row, index, coeff[0][i] * coeff[1][j] * coeff[2][k]);
+            Delta[index] += coeff[0][i] * coeff[1][j] * coeff[2][k] * delta[pi];
           }
         }
       }
-    };
-    for (size_t pi = 0; pi < n; ++pi) {
-      addTriplets(pi, samples[pi].p);
-      addTriplets(n + pi, samples[pi].p + samples[pi].n * sigma);
     }
-    B.setFromTriplets(triplets.begin(), triplets.end());
+    for (size_t i = 0; i < N; ++i) {
+      cpts[i] += mu * Delta[i];
+      Delta[i] = 0;
+    }
   }
-  Eigen::SparseMatrix<double> Bt = B.transpose();
-  Eigen::SparseMatrix<double> BtB = Bt * B;
-  Eigen::MatrixXd I = Eigen::MatrixXd::Identity(N, N);
-  Eigen::Map<Eigen::VectorXd> C(&cpts[0], N);
-  double mu = 2.0 / infinityNorm(BtB);
-  Eigen::VectorXd b = Eigen::VectorXd::Zero(2 * n);
-  b.tail(n) = Eigen::VectorXd::Constant(n, e);
-  for (size_t i = 0; i < iterations; ++i)
-    C = (I - mu * BtB) * C + mu * Bt * b;
 }
