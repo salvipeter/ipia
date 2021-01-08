@@ -85,34 +85,34 @@ void IPIA::fit(const std::vector<PointNormal> &samples, double small_step, size_
   size_t n = samples.size(), N = cpts.size();
   // Set up the collocation matrix
   std::vector<Eigen::Triplet<double>> triplets;
-  for (size_t pi = 0; pi < n; ++pi) {
-    auto fillMatrix = [&](size_t row, const Point3D &p) {
-      size_t degree[3], span[3];
-      DoubleVector coeff[3];
-      for (size_t i = 0; i < 3; ++i) {
-        degree[i] = bases[i].degree();
-        span[i] = bases[i].findSpan(p[i]);
-        bases[i].basisFunctions(span[i], p[i], coeff[i]);
-      }
-      for (size_t i = 0; i <= degree[0]; ++i) {
-        size_t x_offset = (span[0] - degree[0] + i) * sizes[1] * sizes[2];
-        for (size_t j = 0; j <= degree[1]; ++j) {
-          size_t y_offset = (span[1] - degree[1] + j) * sizes[2];
-          for (size_t k = 0; k <= degree[2]; ++k) {
-            size_t z_offset = span[2] - degree[2] + k;
-            size_t index = x_offset + y_offset + z_offset;
-            triplets.emplace_back(row, index, coeff[0][i] * coeff[1][j] * coeff[2][k]);
-          }
+  auto addTriplets = [&](size_t row, const Point3D &p) {
+    size_t degree[3], span[3];
+    DoubleVector coeff[3];
+    for (size_t i = 0; i < 3; ++i) {
+      degree[i] = bases[i].degree();
+      span[i] = bases[i].findSpan(p[i]);
+      bases[i].basisFunctions(span[i], p[i], coeff[i]);
+    }
+    for (size_t i = 0; i <= degree[0]; ++i) {
+      size_t x_offset = (span[0] - degree[0] + i) * sizes[1] * sizes[2];
+      for (size_t j = 0; j <= degree[1]; ++j) {
+        size_t y_offset = (span[1] - degree[1] + j) * sizes[2];
+        for (size_t k = 0; k <= degree[2]; ++k) {
+          size_t z_offset = span[2] - degree[2] + k;
+          size_t index = x_offset + y_offset + z_offset;
+          triplets.emplace_back(row, index, coeff[0][i] * coeff[1][j] * coeff[2][k]);
         }
       }
-    };
-    fillMatrix(pi, samples[pi].p);
-    fillMatrix(n + pi, samples[pi].p + samples[pi].n * sigma);
+    }
+  };
+  for (size_t pi = 0; pi < n; ++pi) {
+    addTriplets(pi, samples[pi].p);
+    addTriplets(n + pi, samples[pi].p + samples[pi].n * sigma);
   }
   Eigen::SparseMatrix<double> B(2 * n, N);
   B.setFromTriplets(triplets.begin(), triplets.end());
-  auto Bt = B.transpose();
-  auto BtB = Bt * B;
+  Eigen::SparseMatrix<double> Bt = B.transpose();
+  Eigen::SparseMatrix<double> BtB = Bt * B;
   Eigen::MatrixXd I = Eigen::MatrixXd::Identity(N, N);
   Eigen::Map<Eigen::VectorXd> C(&cpts[0], N);
   double mu = 2.0 / infinityNorm(BtB);

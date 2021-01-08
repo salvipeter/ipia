@@ -48,7 +48,8 @@ void approximateNormals(std::vector<IPIA::PointNormal> &pns,
     }
   }
   for (auto &pn : pns)
-    pn.n.normalize();
+    if (pn.n.norm() > epsilon)
+      pn.n.normalize();
 }
 
 int main(int argc, char **argv) {
@@ -85,6 +86,7 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
   auto bbox = boundingBox(mesh);
   auto size = computeResolution(bbox, control);
   auto dc_res = computeResolution(bbox, res);
+  std::cout << "Bounding box: (" << bbox[0] << ") - (" << bbox[1] << ')' << std::endl;
   std::cout << "Control size: " << size[0] << 'x' << size[1] << 'x' << size[2]
             << " (= " << size[0] * size[1] * size[2] << " CPs)" << std::endl;
   std::cout << "Dual contouring resolution: "
