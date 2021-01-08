@@ -124,4 +124,6 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
   std::cout << "Mesh generation: "
             << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
             << "ms" << std::endl;
+
+  std::cout << "Mesh written to " << outfile << std::endl;
 }
