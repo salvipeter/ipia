@@ -77,7 +77,8 @@ double IPIA::computeMu(const PointVector &points) {
   return 2.0 / *std::max_element(sums.begin(), sums.end());
 }
 
-void IPIA::fit(const std::vector<PointNormal> &samples, double small_step, size_t iterations) {
+size_t IPIA::fit(const std::vector<PointNormal> &samples, double small_step,
+                 size_t iterations, double tolerance) {
   // Variable names follow the notations of Section 3.2
   // Note that here we set epsilon = sigma.
   cpts.assign(sizes[0] * sizes[1] * sizes[2], 0.0);
@@ -91,14 +92,21 @@ void IPIA::fit(const std::vector<PointNormal> &samples, double small_step, size_
   const double mu = computeMu(points);
   DoubleVector delta(2 * n), Delta(N, 0.0);
 
-  for (size_t iter = 0; iter < iterations; ++iter) {
+  size_t iter = 0;
+  for (; iter < iterations; ++iter) {
+    double max_delta = 0;
     for (size_t pi = 0; pi < 2 * n; ++pi)
       delta[pi] = (pi < n ? 0 : e) - (*this)(points[pi]);
     for (size_t pi = 0; pi < 2 * n; ++pi)
       doBasis(points[pi], [&](size_t index, double B) { Delta[index] += B * delta[pi]; });
     for (size_t i = 0; i < N; ++i) {
+      if (std::abs(Delta[i]) > max_delta)
+        max_delta = std::abs(Delta[i]);
       cpts[i] += mu * Delta[i];
       Delta[i] = 0;
     }
+    if (max_delta < tolerance)
+      break;
   }
+  return iter;
 }

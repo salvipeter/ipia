@@ -62,10 +62,12 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
                                      "# of CPs", cmd);
   TCLAP::ValueArg<size_t> resArg("r", "resolution", "Output resolution", false, 50,
                                  "# of cells", cmd);
-  TCLAP::ValueArg<size_t> iterArg("n", "iterations", "Iteration count", false, 10,
+  TCLAP::ValueArg<size_t> iterArg("n", "iterations", "Max. iteration count", false, 10,
                                   "# of iterations", cmd);
   TCLAP::ValueArg<double> stepArg("s", "step", "Step size", false, 0.01,
                                   "distance", cmd);
+  TCLAP::ValueArg<double> tolArg("t", "tolerance", "Maximum deviation at convergence", false, 1e-5,
+                                  "deviation", cmd);
 
   try {
     cmd.parse(argc, argv);
@@ -75,7 +77,7 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
   }
 
   size_t control = controlArg.getValue(), res = resArg.getValue(), iterations = iterArg.getValue();
-  double step = stepArg.getValue();
+  double step = stepArg.getValue(), tol = tolArg.getValue();
   std::string infile = infileArg.getValue(), outfile = outfileArg.getValue();
 
   auto mesh = TriMesh::readOBJ(infile);
@@ -107,11 +109,15 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
 
   start = std::chrono::steady_clock::now();
   IPIA surface(3, bbox, size);
-  surface.fit(samples, step, iterations);
+  size_t done_iterations = surface.fit(samples, step, iterations, tol);
   stop = std::chrono::steady_clock::now();
   std::cout << "Fitting: "
             << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
             << "ms" << std::endl;
+  if (done_iterations == iterations)
+    std::cout << "Reached maximum iteration count" << std::endl;
+  else
+    std::cout << "Converged at " << done_iterations << " iterations" << std::endl;
 
   start = std::chrono::steady_clock::now();
   auto eval = [&](const DualContouring::Point3D &p) { return surface({ p[0], p[1], p[2] }); };

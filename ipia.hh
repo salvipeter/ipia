@@ -33,7 +33,8 @@ public:
     Geometry::Point3D p;
     Geometry::Vector3D n;
   };
-  void fit(const std::vector<PointNormal> &samples, double small_step, size_t iterations);
+  size_t fit(const std::vector<PointNormal> &samples, double small_step,
+             size_t iterations, double tolerance);
 
 private:
   void doBasis(const Geometry::Point3D &p, const std::function<void(size_t, double)> &f) const;
