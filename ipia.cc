@@ -67,10 +67,53 @@ void IPIA::doBasis(const Point3D &p, const std::function<void(size_t, double)> &
   }
 }
 
+void IPIA::doBasisDerivative(const Point3D &p, const std::function<void(size_t, double)> &f,
+                             size_t dx, size_t dy, size_t dz) const {
+  size_t degree[3], span[3], d[3] = { dx, dy, dz };
+  DoubleMatrix coeff[3];
+  for (size_t i = 0; i < 3; ++i) {
+    degree[i] = bases[i].degree();
+    span[i] = bases[i].findSpan(p[i]);
+    bases[i].basisFunctionDerivatives(span[i], p[i], d[i], coeff[i]);
+  }
+  for (size_t i = 0; i <= degree[0]; ++i) {
+    size_t x_offset = (span[0] - degree[0] + i) * sizes[1] * sizes[2];
+    for (size_t j = 0; j <= degree[1]; ++j) {
+      size_t y_offset = (span[1] - degree[1] + j) * sizes[2];
+      for (size_t k = 0; k <= degree[2]; ++k) {
+        size_t z_offset = span[2] - degree[2] + k;
+        size_t index = x_offset + y_offset + z_offset;
+        double B = coeff[0][d[0]][i] * coeff[1][d[1]][j] * coeff[2][d[2]][k];
+        f(index, B);
+      }
+    }
+  }
+}
+
 double IPIA::operator()(const Point3D &p) const {
   double result = 0;
   doBasis(p, [&](size_t index, double B) { result += cpts[index] * B; });
   return result;
+}
+
+double IPIA::derivative(const Geometry::Point3D &p, size_t dx, size_t dy, size_t dz) const {
+  double result = 0;
+  doBasisDerivative(p, [&](size_t index, double B) { result += cpts[index] * B; }, dx, dy, dz);
+  return result;
+}
+
+Vector3D IPIA::gradient(const Geometry::Point3D &p) const {
+  return { derivative(p, 1, 0, 0), derivative(p, 0, 1, 0), derivative(p, 0, 0, 1) };
+}
+
+Matrix3x3 IPIA::hessian(const Geometry::Point3D &p) const {
+  double xx = derivative(p, 2, 0, 0);
+  double xy = derivative(p, 1, 1, 0);
+  double xz = derivative(p, 1, 0, 1);
+  double yy = derivative(p, 0, 2, 0);
+  double yz = derivative(p, 0, 1, 1);
+  double zz = derivative(p, 0, 0, 2);
+  return Matrix3x3({ xx, xy, xz, xy, yy, yz, xz, yz, zz });
 }
 
 double IPIA::computeMu(const PointVector &points) {

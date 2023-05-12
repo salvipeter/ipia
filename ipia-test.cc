@@ -1,9 +1,11 @@
 #include <chrono>
 #include <cmath>
+#include <fstream>
 
 #include <tclap/CmdLine.h>
 
 #include "dc.hh"
+#include "implicit-curvatures.hh"
 #include "ipia.hh"
 
 using namespace Geometry;
@@ -52,12 +54,55 @@ void approximateNormals(std::vector<IPIA::PointNormal> &pns,
       pn.n.normalize();
 }
 
+void writeVertexCurvatures(const std::vector<Point3D> &vertices, const IPIA &surface,
+                           std::string filename) {
+  std::ofstream f(filename);
+  f << "# vtk DataFile Version 2.0" << std::endl;
+  f << "Vertices with normals, mean, Gaussian and principal curvature values & directions"
+    << std::endl;
+  f << "ASCII" << std::endl;
+  f << "DATASET POLYDATA" << std::endl;
+  f << "POINTS " << vertices.size() << " float" << std::endl;
+  for (const auto &v : vertices)
+    f << v << std::endl;
+  f << "POINT_DATA " << vertices.size() << std::endl;
+  f << "NORMALS normal float" << std::endl;
+  for (const auto &v : vertices) {
+    auto g = surface.gradient(v);
+    if (g.normSqr() > 0)
+      g.normalize();
+    f << g << std::endl;
+  }
+  f << "SCALARS mean float 1" << std::endl;
+  f << "LOOKUP_TABLE default" << std::endl;
+  for (const auto &v : vertices)
+    f << ImplicitCurvature::mean(surface.gradient(v), surface.hessian(v)) << std::endl;
+  f << "SCALARS Gaussian float 1" << std::endl;
+  f << "LOOKUP_TABLE default" << std::endl;
+  for (const auto &v : vertices)
+    f << ImplicitCurvature::gaussian(surface.gradient(v), surface.hessian(v)) << std::endl;
+  f << "SCALARS k1 float 1" << std::endl;
+  f << "LOOKUP_TABLE default" << std::endl;
+  for (const auto &v : vertices)
+    f << ImplicitCurvature::principal(surface.gradient(v), surface.hessian(v)).first << std::endl;
+  f << "SCALARS k2 float 1" << std::endl;
+  f << "LOOKUP_TABLE default" << std::endl;
+  for (const auto &v : vertices)
+    f << ImplicitCurvature::principal(surface.gradient(v), surface.hessian(v)).second << std::endl;
+  f << "NORMALS d1 float" << std::endl;
+  for (const auto &v : vertices)
+    f << ImplicitCurvature::directions(surface.gradient(v), surface.hessian(v)).first << std::endl;
+  f << "NORMALS d2 float" << std::endl;
+  for (const auto &v : vertices)
+    f << ImplicitCurvature::directions(surface.gradient(v), surface.hessian(v)).second << std::endl;
+}
+
 int main(int argc, char **argv) {
   TCLAP::CmdLine cmd(R"END(Implicit PIA fitting test
 Given an input mesh, it approximates normal vectors, and creates an implicit surface via PIA fitting. Then the output quadmesh is created by dual contouring.)END", ' ', "0.1");
   TCLAP::ValueArg<std::string> infileArg("i", "input", "Input mesh", true, "", "input.obj", cmd);
-  TCLAP::ValueArg<std::string> outfileArg("o", "output", "Output mesh", false, "/tmp/output.obj",
-                                          "output.obj", cmd);
+  TCLAP::ValueArg<std::string> outfileArg("o", "output", "Output filename", false, "/tmp/output",
+                                          "output", cmd);
   TCLAP::ValueArg<size_t> controlArg("c", "control", "B-spline control size", false, 10,
                                      "# of CPs", cmd);
   TCLAP::ValueArg<size_t> resArg("r", "resolution", "Output resolution", false, 50,
@@ -125,11 +170,24 @@ Given an input mesh, it approximates normal vectors, and creates an implicit sur
     { bbox[0][0], bbox[0][1], bbox[0][2] },
     { bbox[1][0], bbox[1][1], bbox[1][2] }
   } };
-  DualContouring::isosurface(eval, 0.0, dc_bbox, dc_res).writeOBJ(outfile);
+  auto dc_mesh = DualContouring::isosurface(eval, 0.0, dc_bbox, dc_res);
+  dc_mesh.writeOBJ(outfile + ".obj");
   stop = std::chrono::steady_clock::now();
   std::cout << "Mesh generation: "
             << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
             << "ms" << std::endl;
 
-  std::cout << "Mesh written to " << outfile << std::endl;
+  std::cout << "Mesh written to " << outfile + ".obj" << std::endl;
+
+  start = std::chrono::steady_clock::now();
+  PointVector vertices;
+  std::transform(dc_mesh.points.begin(), dc_mesh.points.end(), std::back_inserter(vertices),
+                 [](const auto &p) { return Point3D(p[0], p[1], p[2]); });
+  writeVertexCurvatures(vertices, surface, outfile + ".vtk");  
+  stop = std::chrono::steady_clock::now();
+  std::cout << "Curvature generation: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
+            << "ms" << std::endl;
+
+  std::cout << "Curvatures written to " << outfile + ".vtk" << std::endl;
 }

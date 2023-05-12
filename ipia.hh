@@ -28,6 +28,9 @@ public:
 
   // Evaluation
   double operator()(const Geometry::Point3D &p) const;
+  double derivative(const Geometry::Point3D &p, size_t dx, size_t dy, size_t dz) const;
+  Geometry::Vector3D gradient(const Geometry::Point3D &p) const;
+  Geometry::Matrix3x3 hessian(const Geometry::Point3D &p) const;
 
   // Fitting
   struct PointNormal {
@@ -39,6 +42,8 @@ public:
 
 private:
   void doBasis(const Geometry::Point3D &p, const std::function<void(size_t, double)> &f) const;
+  void doBasisDerivative(const Geometry::Point3D &p, const std::function<void(size_t, double)> &f,
+                         size_t dx, size_t dy, size_t dz) const;
   double computeMu(const Geometry::PointVector &points);
 
   std::array<size_t, 3> sizes;
